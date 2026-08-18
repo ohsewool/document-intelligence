@@ -29,9 +29,13 @@ hierarchy.py      문서 구조(섹션·페이지·구역) 참조와 검증
 
 ## 관련 저장소
 
-[`rag-profile-selector`](../rag-profile-selector)가 검색 결과를 이 모델의 좌표로 되짚어 인용 정확도를 측정한다. 두 저장소를 물리적으로 합치지 않은 이유는 그쪽 `docs/ADR-001-citation-grounding.md`에 기록돼 있다.
+[`rag-profile-selector`](https://github.com/ohsewool/rag-profile-selector)가 검색 결과를 이 모델의 좌표로 되짚어 인용 정확도를 측정한다. 두 저장소를 물리적으로 합치지 않은 이유는 그쪽 `docs/ADR-001-citation-grounding.md`에 기록돼 있다.
 
 ## 남은 작업
 
 - 실제 파서 연결 (HWP·PDF — 별도 결정 필요)
 - 스캔 문서의 OCR 좌표 처리
+
+## 라이선스
+
+Apache License 2.0. [`LICENSE`](LICENSE) 참조.
