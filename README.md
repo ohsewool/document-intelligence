@@ -36,7 +36,7 @@ hierarchy.py      문서 구조(섹션·페이지·구역) 참조와 검증
 ## 실제 파서 연결
 
 ```bash
-python3 -m pytest tests/test_pdfplumber_adapter.py -q      # 66 tests
+python3 -m pytest tests/ -q      # 67 tests, about 12 seconds
 ```
 
 `adapters/pdfplumber_adapter.py`가 실제 PDF를 pdfplumber로 파싱해 이 모델에 그대로 넘긴다. 이전까지 모델이 만난 좌표는 전부 이 저장소의 픽스처가 만든 것이었는데, 픽스처는 모델에 맞게 쓰이므로 "어떤 파서의 결과든 받는다"는 주장의 시험이 되지 못한다. 15페이지 논문에서 구역 724개, 거부 0건.

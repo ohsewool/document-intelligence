@@ -51,9 +51,15 @@ _CACHE: dict[tuple, object] = {}
 def parse_once(path, **kwargs):
     """Parse once per configuration.
 
-    A full parse of this PDF costs about three minutes, and the first version of
-    this file paid it repeatedly - 386 seconds for sixty-six tests. A suite that
-    slow stops being run, which costs more than the coverage it buys.
+    Correcting an earlier claim in this file: it said a full parse cost about
+    three minutes and that the suite took 386 seconds. Both numbers were
+    measured while an embedding job was saturating the CPU, and neither is real.
+    Uncontended, the whole document parses in about 7 seconds and the suite runs
+    in twelve.
+
+    Memoising is still worth doing - three configurations were being parsed
+    eleven times - but the case for it is ordinary rather than urgent, and a
+    number taken under load is not a measurement.
     """
     key = (str(path), tuple(sorted(kwargs.items())))
     if key not in _CACHE:
@@ -63,11 +69,9 @@ def parse_once(path, **kwargs):
 
 @pytest.fixture(scope="module")
 def parsed(sample_pdf):
-    """Three pages: enough for every structural claim here.
+    """Three pages: enough for the structural claims that do not need more.
 
-    The whole document is checked by one test marked `slow`, because "no page of
-    a real paper is rejected" is worth verifying over all fifteen pages and not
-    worth three minutes on every run.
+    One test parses all fifteen, and does so on every run.
     """
     return parse_once(sample_pdf, max_pages=3)
 
@@ -77,9 +81,13 @@ class TestARealParseIsAcceptedWhole:
         assert parsed.document.pages
         assert parsed.region_count > 100
 
-    @pytest.mark.slow
     def test_no_page_of_a_real_paper_is_rejected(self, sample_pdf):
-        """Over the whole document, not a sample of it."""
+        """Over the whole document, not a sample of it.
+
+        Was marked `slow` on the strength of a contended timing. At seven
+        seconds it does not need to be, and a full-document check that runs by
+        default is worth more than one behind a flag.
+        """
         result = parse_once(sample_pdf)
         assert len(result.document.pages) == 15
         assert result.skipped == ()
