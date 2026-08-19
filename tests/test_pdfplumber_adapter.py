@@ -293,3 +293,37 @@ class TestRejectionsAreClassified:
             "page dimensions must be finite and positive",
         ]
         assert all(classify(m) != "unclassified" for m in messages)
+
+
+def test_the_package_works_without_pdfplumber():
+    """The evidence model is standard library; the adapter is the optional part.
+
+    Checked rather than assumed. With pdfplumber blocked, 72 tests pass and only
+    this module skips - so someone who wants the model without a PDF parser gets
+    a working install.
+    """
+    import subprocess
+    import sys
+    import textwrap
+
+    script = textwrap.dedent('''
+        import sys
+        from importlib.abc import MetaPathFinder
+
+        class Absent(MetaPathFinder):
+            def find_spec(self, name, path=None, target=None):
+                if name.split(".")[0] == "pdfplumber":
+                    raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+                return None
+
+        sys.meta_path.insert(0, Absent())
+        sys.path.insert(0, "src")
+        from document_intelligence.model import BoundingBox, Document, Page, TextRegion
+        page = Page(number=1, width=1.0, height=1.0, regions=(
+            TextRegion(identifier="r1", bounding_box=BoundingBox(0.1, 0.1, 0.9, 0.2)),))
+        print(Document(identifier="d", checksum="c", pages=(page,)).pages[0].number)
+    ''')
+    finished = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
+                              capture_output=True, text=True, timeout=300)
+    assert finished.returncode == 0, finished.stderr[-800:]
+    assert finished.stdout.strip() == "1"
