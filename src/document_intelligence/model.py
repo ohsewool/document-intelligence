@@ -10,6 +10,7 @@ from typing import Literal, TypeAlias
 
 CoordinateSpace: TypeAlias = Literal["normalized", "page"]
 RegionType: TypeAlias = Literal["text", "table", "figure", "caption"]
+TextProvenance: TypeAlias = Literal["extracted", "transcribed"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,13 +46,51 @@ class BoundingBox:
 
 @dataclass(frozen=True, slots=True)
 class _Region:
+    """A located piece of a document.
+
+    `provenance` and `confidence` exist because a citation into transcribed text
+    is not the same promise as one into a document's own text layer. A page
+    parsed from a PDF's text objects reproduces what the file says; a scanned
+    page reproduces what a recogniser guessed, and the two look identical once
+    the words are in a string. A reader following a citation into the second
+    kind is checking a claim against a transcription, and the model is where
+    that distinction has to survive - it is lost forever at the parser boundary
+    otherwise.
+
+    `extracted` is the default because it is the honest description of what
+    every parser wired up here produces today. No OCR engine is bundled with
+    this package; `transcribed` is here so a parser that does OCR has somewhere
+    to put what it knows, not as a claim that this library performs OCR.
+    """
+
     identifier: str
     bounding_box: BoundingBox
     region_type: RegionType = field(init=False)
+    provenance: TextProvenance = "extracted"
+    confidence: float | None = None
 
     def __post_init__(self) -> None:
         if not self.identifier:
             raise ValueError("region identifier must not be empty")
+        if self.provenance not in ("extracted", "transcribed"):
+            raise ValueError("provenance must be 'extracted' or 'transcribed'")
+        if self.confidence is not None:
+            if not isinstance(self.confidence, Real) or not isfinite(self.confidence):
+                raise ValueError("confidence must be a finite number")
+            if not 0.0 <= self.confidence <= 1.0:
+                raise ValueError("confidence must be within 0..1")
+        if self.provenance == "transcribed" and self.confidence is None:
+            # A transcription without a confidence is a guess presented as a
+            # reading. The recogniser knows how sure it was; refusing the region
+            # keeps that from being dropped on the way in.
+            raise ValueError(
+                "a transcribed region must carry the recogniser's confidence"
+            )
+        if self.provenance == "extracted" and self.confidence is not None:
+            raise ValueError(
+                "an extracted region has no confidence to report; it is what the "
+                "document says"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,3 +214,50 @@ class Document:
                     pages[citation.references[0].page_number].width,
                     pages[citation.references[0].page_number].height,
                 )
+
+    def regions_supporting(self, citation: "EvidenceCitation") -> tuple[Region, ...]:
+        """The regions a citation actually rests on.
+
+        A citation names identifiers. Resolving them is what turns "this claim
+        is supported" into something a reader can weigh.
+        """
+        pages = {page.number: page for page in self.pages}
+        found: list[Region] = []
+        for reference in citation.references:
+            page = pages.get(reference.page_number)
+            if page is None or not isinstance(reference, RegionReference):
+                continue
+            found.extend(
+                region for region in page.regions
+                if region.identifier == reference.region_identifier
+            )
+        return tuple(found)
+
+    def citation_provenance(self, citation: "EvidenceCitation") -> str:
+        """`extracted`, `transcribed`, or `mixed`.
+
+        The question a reader is really asking when they follow a citation: am I
+        checking this against what the document says, or against what a
+        recogniser thought it said. A citation resting on both is `mixed`, said
+        plainly rather than averaged away - part of it is quotable and part of
+        it is a reading.
+        """
+        kinds = {region.provenance for region in self.regions_supporting(citation)}
+        if not kinds:
+            return "extracted"          # page-level citation; nothing transcribed
+        if len(kinds) == 1:
+            return kinds.pop()
+        return "mixed"
+
+    def lowest_confidence(self, citation: "EvidenceCitation") -> float | None:
+        """The weakest transcription a citation depends on, if any.
+
+        The minimum rather than the mean: a citation is only as checkable as its
+        least certain part, and an average lets one confident region hide an
+        uncertain one.
+        """
+        scores = [
+            region.confidence for region in self.regions_supporting(citation)
+            if region.confidence is not None
+        ]
+        return min(scores) if scores else None
