@@ -3,7 +3,7 @@
 문서에서 뽑아낸 내용이 **원문의 어디에서 왔는지**를 잃지 않고 표현하기 위한 데이터 모델. 파서를 포함하지 않으며, 어떤 파서가 만든 결과든 같은 형태로 받아 검증한다.
 
 ```bash
-python3 -m pytest tests/ -q     # 52 tests
+python3 -m pytest tests/ -q     # 67 tests
 ```
 
 ## 무엇을 보장하는가
