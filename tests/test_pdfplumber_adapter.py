@@ -107,9 +107,21 @@ class TestARealParseIsAcceptedWhole:
         assert parsed.document.checksum == hashlib.sha256(sample_pdf.read_bytes()).hexdigest()
 
     def test_every_region_fits_its_page(self, parsed):
+        """The count is asserted because this test has neither an `assert` of
+        its own nor anything guaranteeing the loop runs.
+
+        `validate_for_page` raising *is* the assertion, which is legitimate -
+        but over an empty parse the body never executes and the test passes
+        having checked nothing. Non-emptiness is pinned in a different test, so
+        deleting that one would quietly turn this into a no-op. A test should
+        not depend on another test to be meaningful.
+        """
+        checked = 0
         for page in parsed.document.pages:
             for region in page.regions:
                 region.bounding_box.validate_for_page(page.width, page.height)
+                checked += 1
+        assert checked > 100, f"only {checked} regions were checked"
 
     def test_region_identifiers_are_unique_within_a_page(self, parsed):
         for page in parsed.document.pages:
