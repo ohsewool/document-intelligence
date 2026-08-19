@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 pytest.importorskip("pdfplumber")
 
-from adapters.pdfplumber_adapter import parse_pdf  # noqa: E402
+from document_intelligence.adapters.pdfplumber import parse_pdf  # noqa: E402
 from document_intelligence.model import BoundingBox  # noqa: E402
 
 # arXiv:1706.03762, distributed by the authors for exactly this kind of reuse.
@@ -153,7 +153,7 @@ class TestMalformedInputIsIsolated:
     def with_broken_lines(self, sample_pdf):
         # Class-scoped, so the injected parse happens once rather than per test.
         # monkeypatch is function-scoped and cannot be used here.
-        import adapters.pdfplumber_adapter as adapter
+        import document_intelligence.adapters.pdfplumber as adapter
         original = adapter._lines
 
         def broken(page):
@@ -262,20 +262,20 @@ class TestRejectionsAreClassified:
     which in prose; the adapter says which in a value."""
 
     def test_a_degenerate_box_is_named_as_one(self):
-        from adapters.pdfplumber_adapter import classify
+        from document_intelligence.adapters.pdfplumber import classify
         assert classify("bounding-box coordinates must be ordered") == "degenerate_box"
 
     def test_an_off_page_box_is_named_as_one(self):
-        from adapters.pdfplumber_adapter import classify
+        from document_intelligence.adapters.pdfplumber import classify
         assert classify("page-space bounding box must be within page bounds") == "outside_page"
         assert classify("normalized bounding-box coordinates must be within 0..1") == "outside_page"
 
     def test_a_non_finite_coordinate_is_its_own_cause(self):
-        from adapters.pdfplumber_adapter import classify
+        from document_intelligence.adapters.pdfplumber import classify
         assert classify("bounding-box coordinates must be finite") == "non_finite"
 
     def test_a_duplicate_identifier_is_a_page_level_problem(self):
-        from adapters.pdfplumber_adapter import classify
+        from document_intelligence.adapters.pdfplumber import classify
         assert classify("region identifiers must be unique within a page") == \
             "duplicate_identifier"
 
@@ -283,7 +283,7 @@ class TestRejectionsAreClassified:
         """The model gained a rejection reason this adapter has never seen. That
         is the case a reader most needs to look at, so it is not folded into a
         benign default."""
-        from adapters.pdfplumber_adapter import classify
+        from document_intelligence.adapters.pdfplumber import classify
         assert classify("some future rule nobody has written yet") == "unclassified"
 
     def test_every_cause_the_model_can_raise_is_covered(self, sample_pdf):
@@ -292,7 +292,7 @@ class TestRejectionsAreClassified:
         If the model grows a reason the adapter cannot name, this fails rather
         than quietly labelling it unclassified in production.
         """
-        from adapters.pdfplumber_adapter import classify
+        from document_intelligence.adapters.pdfplumber import classify
 
         messages = [
             "bounding-box coordinates must be ordered",

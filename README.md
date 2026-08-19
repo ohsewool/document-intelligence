@@ -6,7 +6,7 @@
 
 ```bash
 pip install -e .                                   # src/ 레이아웃이라 설치 없이는 import되지 않는다
-python3 -m pytest tests/ -q     # 98 tests
+python3 -m pytest tests/ -q     # 106 tests
 ```
 
 ## 무엇을 보장하는가
@@ -37,10 +37,10 @@ hierarchy.py      문서 구조(섹션·페이지·구역) 참조와 검증
 ## 실제 파서 연결
 
 ```bash
-python3 -m pytest tests/ -q      # 98 tests, about 12 seconds
+python3 -m pytest tests/ -q      # 106 tests, about 12 seconds
 ```
 
-`adapters/pdfplumber_adapter.py`가 실제 PDF를 pdfplumber로 파싱해 이 모델에 그대로 넘긴다. 이전까지 모델이 만난 좌표는 전부 이 저장소의 픽스처가 만든 것이었는데, 픽스처는 모델에 맞게 쓰이므로 "어떤 파서의 결과든 받는다"는 주장의 시험이 되지 못한다. 15페이지 논문에서 구역 724개, 거부 0건.
+`src/document_intelligence/adapters/pdfplumber.py`가 실제 PDF를 pdfplumber로 파싱해 이 모델에 그대로 넘긴다. 이전까지 모델이 만난 좌표는 전부 이 저장소의 픽스처가 만든 것이었는데, 픽스처는 모델에 맞게 쓰이므로 "어떤 파서의 결과든 받는다"는 주장의 시험이 되지 못한다. 15페이지 논문에서 구역 724개, 거부 0건.
 
 거부는 **값으로 분류된다** — `degenerate_box`, `outside_page`, `non_finite` 등. 모델은 열두 가지 사유를 산문으로 말하고, 호출자가 "파서가 높이 0인 줄을 냈다"와 "파서가 페이지 밖에 글자를 뒀다"에 다르게 대응하려면 그 문장을 매칭해야 했다. **이 저장소의 테스트가 실제로 그러고 있었고**, 그게 분류가 필요하다는 신호였다 — 스위트가 산문을 읽어야 안다면 모든 호출자도 그렇다.
 
@@ -89,3 +89,15 @@ PDF의 텍스트 객체에서 뽑은 페이지는 **파일이 말하는 것**을
 - [`modelmate`](https://github.com/ohsewool/modelmate) — 증거가 없으면 확신하지 않는 모델링 도우미
 - [`rag-profile-selector`](https://github.com/ohsewool/rag-profile-selector) — 인용이 어디를 가리키는지 측정 · 한국어 법령 코퍼스
 - [`mcp-gateway`](https://github.com/ohsewool/mcp-gateway) — MCP 서버 앞의 보안 프록시
+
+### 어댑터가 최상위 `adapters`에 있었다
+
+`adapters`는 다른 배포판도 쓰는 최상위 이름이다 — 형제 저장소 `agent-safety-core`가 하나 내보낸다. 경로에서 먼저 만나는 정규 패키지가 이기고, **경고는 없다.**
+
+```
+pip install agent-safety-core --target /tmp/asc
+PYTHONPATH=/tmp/asc python3 -c "from adapters.pdfplumber_adapter import parse_pdf"
+ModuleNotFoundError: No module named 'adapters.pdfplumber_adapter'
+```
+
+인용을 문서와 대조하라고 있는 라이브러리에서 **파서가 무관한 프로젝트에 조용히 대체되는 것**은 작은 문제가 아니다. 구현은 `document_intelligence.adapters.pdfplumber`로 옮겼고 — 이 배포판이 소유한 패키지 안이다 — 예전 경로는 충돌이 없는 독자를 위해 재수출로 남겼다. 가짜 `adapters` 패키지를 만들어 하위 프로세스에서 8개 테스트로 고정했다. **가짜가 정말 최상위 이름을 가져갔는지도 함께 단언한다** — 그게 없으면 충돌이 없는 환경에서 통과하면서 아무것도 증명하지 않는다.
