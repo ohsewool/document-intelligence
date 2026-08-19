@@ -1,0 +1,6 @@
+# The evidence model itself is standard library only - it deliberately contains
+# no parser.
+
+# Tests
+pytest>=8
+pdfplumber>=0.11        # the real-parser adapter and its tests
