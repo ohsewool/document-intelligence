@@ -188,3 +188,52 @@ class TestTheAdapterDoesNotRepair:
     def test_an_inverted_box_is_refused_not_reordered(self):
         with pytest.raises(ValueError):
             BoundingBox(50.0, 10.0, 10.0, 50.0, coordinate_space="page")
+
+
+class TestTheOrderIsPositionNotReading:
+    """`p14-l5` is the fifth line down the page, not the fifth thing you read.
+
+    The identifiers run l1, l2, l3 and look like a reading order. They are
+    vertical position, and on the two-column pages of this paper the columns
+    interleave - so a reader following the numbers crosses between columns.
+
+    Columns are not guessed at. Splitting on the largest gap between line start
+    positions was measured against this document and gets it backwards: a
+    single-column page shows a 16.7% gap and a genuinely two-column page shows
+    8.8%. A heuristic that confident and that wrong is worse than an honest
+    positional order, because a reader told the order is positional can allow
+    for it.
+    """
+
+    def test_the_result_says_which_order_it_produced(self, parsed):
+        assert parsed.order_basis == "vertical_position"
+
+    def test_regions_are_ordered_by_vertical_position(self, parsed):
+        for page in parsed.document.pages:
+            tops = [region.bounding_box.top for region in page.regions]
+            assert tops == sorted(tops)
+
+    @pytest.mark.slow
+    def test_a_two_column_page_interleaves_under_this_order(self, sample_pdf):
+        """The limitation, measured rather than asserted.
+
+        If this ever stops interleaving, either the adapter became
+        column-aware - in which case order_basis must change too - or the
+        fixture did.
+        """
+        result = parse_once(sample_pdf)
+        page = next(p for p in result.document.pages if p.number == 14)
+        middle = page.width / 2
+        crossings = sum(
+            1 for first, second in zip(page.regions, page.regions[1:])
+            if (first.bounding_box.left < middle) != (second.bounding_box.left < middle)
+        )
+        assert crossings > 5, "expected column interleaving on a two-column page"
+
+    def test_the_reading_order_type_is_reachable_for_callers_who_know(self):
+        """The adapter cannot produce a reading order, so the type is exported
+        rather than wired in - somewhere for a caller who does know to record
+        and validate one."""
+        from document_intelligence import ReadingOrder, validate_reading_order
+
+        assert ReadingOrder is not None and callable(validate_reading_order)

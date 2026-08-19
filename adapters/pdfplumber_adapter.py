@@ -29,6 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from document_intelligence.model import BoundingBox, Document, Page, TextRegion
 
 
+ORDER_BASIS = "vertical_position"
+
+
 @dataclass(frozen=True)
 class SkippedRegion:
     """A region the model refused, kept rather than dropped.
@@ -46,6 +49,7 @@ class SkippedRegion:
 class ParseResult:
     document: Document
     skipped: tuple[SkippedRegion, ...]
+    order_basis: str = ORDER_BASIS
 
     @property
     def region_count(self) -> int:
@@ -53,11 +57,28 @@ class ParseResult:
 
 
 def _lines(page) -> list[dict]:
-    """Group words into lines by their top coordinate.
+    """Group words into lines by their top coordinate, ordered top to bottom.
 
     pdfplumber gives words; a citation to a single word is too fine to be
     useful, and one to a whole page too coarse to check. Lines are the unit a
     reader can actually locate on the page.
+
+    **This is vertical position, not reading order.** On the two-column pages of
+    the sample paper the two columns interleave - page 14 alternates sides
+    twenty times across forty-five regions - so `p14-l5` is the fifth line down
+    the page, not the fifth thing a person would read.
+
+    Columns are not guessed at. The obvious derivation, splitting on the largest
+    gap between line start positions, was measured against this document and
+    does not work: a single-column page shows a 16.7% gap and a genuinely
+    two-column one shows 8.8%. A heuristic that gets those two backwards would
+    produce a confident wrong ordering, which is worse than an honest positional
+    one - a reader who knows the order is positional can allow for it, and one
+    told it is reading order cannot.
+
+    `ParseResult.order_basis` states which of the two this is, and
+    `document_intelligence.reading_order` is where a caller who does know the
+    real order records and validates it.
     """
     words = page.extract_words()
     rows: dict[int, list[dict]] = {}
@@ -121,4 +142,5 @@ def parse_pdf(path: str | Path, *, max_pages: int | None = None,
                 skipped.append(SkippedRegion(index, f"p{index}", f"page rejected: {error}"))
 
     document = Document(identifier=path.name, checksum=digest, pages=tuple(pages))
-    return ParseResult(document=document, skipped=tuple(skipped))
+    return ParseResult(document=document, skipped=tuple(skipped),
+                       order_basis=ORDER_BASIS)

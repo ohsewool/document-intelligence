@@ -39,3 +39,8 @@ __all__ = [
     "TextRegion",
     "validate_document_hierarchy",
 ]
+
+# The place a caller who knows the real reading order records and validates it.
+# The bundled adapter cannot produce one - it orders by vertical position and
+# says so - so this is exported rather than wired in.
+from .reading_order import ReadingOrder, ReadingOrderLink, validate_reading_order  # noqa: E402,F401

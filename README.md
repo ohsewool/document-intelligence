@@ -6,7 +6,7 @@
 
 ```bash
 pip install -e .                                   # src/ 레이아웃이라 설치 없이는 import되지 않는다
-python3 -m pytest tests/ -q     # 87 tests
+python3 -m pytest tests/ -q     # 91 tests
 ```
 
 ## 무엇을 보장하는가
@@ -26,7 +26,7 @@ python3 -m pytest tests/ -q     # 87 tests
 ```
 model.py          BoundingBox, Region(text/table/figure/caption), Page, Document, EvidenceCitation
 coordinates.py    좌표 공간 변환
-reading_order.py  결정론적 읽기 순서
+reading_order.py  읽기 순서를 아는 호출자가 기록·검증하는 자리 (어댑터는 만들지 못한다 — 아래)
 hierarchy.py      문서 구조(섹션·페이지·구역) 참조와 검증
 ```
 
@@ -37,7 +37,7 @@ hierarchy.py      문서 구조(섹션·페이지·구역) 참조와 검증
 ## 실제 파서 연결
 
 ```bash
-python3 -m pytest tests/ -q      # 87 tests, about 12 seconds
+python3 -m pytest tests/ -q      # 91 tests, about 12 seconds
 ```
 
 `adapters/pdfplumber_adapter.py`가 실제 PDF를 pdfplumber로 파싱해 이 모델에 그대로 넘긴다. 이전까지 모델이 만난 좌표는 전부 이 저장소의 픽스처가 만든 것이었는데, 픽스처는 모델에 맞게 쓰이므로 "어떤 파서의 결과든 받는다"는 주장의 시험이 되지 못한다. 15페이지 논문에서 구역 724개, 거부 0건.
@@ -54,6 +54,14 @@ python3 -m pytest tests/ -q      # 87 tests, about 12 seconds
 ## 라이선스
 
 Apache License 2.0. [`LICENSE`](LICENSE) 참조.
+
+## 순서는 읽기 순서가 아니다
+
+어댑터가 붙이는 식별자는 `l1, l2, l3`으로 흘러서 **읽기 순서처럼 보인다.** 실제로는 **수직 위치**다. 이 논문의 2단 페이지에서는 두 단이 섞이고, 14페이지는 구역 45개에서 좌우를 **20번** 오간다. `p14-l5`는 페이지에서 다섯 번째 줄이지 사람이 다섯 번째로 읽을 것이 아니다.
+
+**단을 추측하지 않는다.** 가장 그럴듯한 유도 — 줄 시작 x값의 최대 간격으로 나누기 — 를 이 문서로 재봤더니 **거꾸로 나온다**: 단일 단 페이지가 16.7% 간격을, 진짜 2단 페이지가 8.8%를 보인다. 그 정도로 자신 있게 틀리는 휴리스틱은 정직한 위치 순서보다 나쁘다. 위치 순서라고 들은 독자는 그걸 감안할 수 있지만, 읽기 순서라고 들은 독자는 못 한다.
+
+`ParseResult.order_basis`가 둘 중 무엇인지 말하고, `reading_order`는 **실제 순서를 아는 호출자**가 기록하고 검증하는 자리다. 어댑터가 만들지 못하므로 배선하지 않고 내보내기만 한다.
 
 ## 전사된 텍스트는 다른 약속이다
 
