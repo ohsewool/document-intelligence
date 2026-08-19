@@ -1,0 +1,124 @@
+"""Turn a pdfplumber parse into the evidence model.
+
+This repository's claim is that the model takes whatever a parser produced and
+validates it the same way. Until now the only parser was the test fixtures,
+which is not a test of that claim - fixtures are written to fit. This adapter
+runs a real PDF through a real parser and hands the result to the model
+unmodified, so the model's rules meet coordinates it did not choose.
+
+The adapter deliberately does no repair. If pdfplumber emits a zero-height line
+or a word extending past the page edge, that reaches the model and the model
+refuses it. Silently correcting such a box would make the citation point
+somewhere the text is not, which is the failure this model exists to prevent -
+and it would hide, in a library that produces evidence, the fact that the input
+was wrong.
+
+    from adapters.pdfplumber_adapter import parse_pdf
+    document = parse_pdf("paper.pdf")
+"""
+
+from __future__ import annotations
+
+import hashlib
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from document_intelligence.model import BoundingBox, Document, Page, TextRegion
+
+
+@dataclass(frozen=True)
+class SkippedRegion:
+    """A region the model refused, kept rather than dropped.
+
+    A parser adapter that quietly discards what it cannot represent reports a
+    clean document over a partial one. The count belongs in the result.
+    """
+
+    page_number: int
+    identifier: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ParseResult:
+    document: Document
+    skipped: tuple[SkippedRegion, ...]
+
+    @property
+    def region_count(self) -> int:
+        return sum(len(page.regions) for page in self.document.pages)
+
+
+def _lines(page) -> list[dict]:
+    """Group words into lines by their top coordinate.
+
+    pdfplumber gives words; a citation to a single word is too fine to be
+    useful, and one to a whole page too coarse to check. Lines are the unit a
+    reader can actually locate on the page.
+    """
+    words = page.extract_words()
+    rows: dict[int, list[dict]] = {}
+    for word in words:
+        # Rounding to the point: characters on one line vary by fractions from
+        # font metrics, and a stricter key would split every line into several.
+        rows.setdefault(round(word["top"]), []).append(word)
+    return [sorted(group, key=lambda w: w["x0"]) for _, group in sorted(rows.items())]
+
+
+def parse_pdf(path: str | Path, *, max_pages: int | None = None,
+              coordinate_space: str = "page") -> ParseResult:
+    import pdfplumber
+
+    path = Path(path)
+    # The model demands a checksum, and the right one is of the bytes actually
+    # parsed. A citation into this document is only meaningful against the file
+    # it was produced from; a different edition with the same name is a
+    # different document.
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    pages: list[Page] = []
+    skipped: list[SkippedRegion] = []
+
+    with pdfplumber.open(str(path)) as pdf:
+        for index, source in enumerate(pdf.pages, start=1):
+            if max_pages is not None and index > max_pages:
+                break
+            regions = []
+            for line_number, words in enumerate(_lines(source), start=1):
+                identifier = f"p{index}-l{line_number}"
+                left = min(w["x0"] for w in words)
+                right = max(w["x1"] for w in words)
+                top = min(w["top"] for w in words)
+                bottom = max(w["bottom"] for w in words)
+                if coordinate_space == "normalized":
+                    left, right = left / source.width, right / source.width
+                    top, bottom = top / source.height, bottom / source.height
+                try:
+                    box = BoundingBox(left, top, right, bottom,
+                                      coordinate_space=coordinate_space)
+                    # Checked here as well as by Page, because Page checks it
+                    # while constructing and one bad box aborts the whole
+                    # construction. A parser emitting a single malformed line
+                    # would then cost every good region on that page - the
+                    # first version of this adapter lost two entire pages to one
+                    # injected box. Rejecting the region individually keeps the
+                    # rest of the evidence.
+                    box.validate_for_page(source.width, source.height)
+                    regions.append(TextRegion(identifier=identifier, bounding_box=box))
+                except ValueError as error:
+                    skipped.append(SkippedRegion(index, identifier, str(error)))
+
+            try:
+                pages.append(Page(number=index, width=source.width,
+                                  height=source.height, regions=tuple(regions)))
+            except ValueError as error:
+                # A page can still be refused for reasons no single region owns,
+                # such as duplicate identifiers. Then the page really is
+                # unrepresentable and losing it is the correct outcome.
+                skipped.append(SkippedRegion(index, f"p{index}", f"page rejected: {error}"))
+
+    document = Document(identifier=path.name, checksum=digest, pages=tuple(pages))
+    return ParseResult(document=document, skipped=tuple(skipped))
