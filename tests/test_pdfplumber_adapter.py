@@ -159,9 +159,14 @@ class TestMalformedInputIsIsolated:
             adapter._lines = original
 
     def test_the_bad_lines_are_rejected(self, with_broken_lines):
-        reasons = " ".join(item.reason for item in with_broken_lines.skipped)
-        assert "ordered" in reasons
-        assert "within page bounds" in reasons
+        """Checked by cause rather than by message.
+
+        This test used to match on the exception text, which is what showed the
+        adapter needed to classify at all: if the suite has to read prose to
+        know what happened, so does every caller.
+        """
+        causes = {item.cause for item in with_broken_lines.skipped}
+        assert causes == {"degenerate_box", "outside_page"}
 
     def test_the_rest_of_the_page_survives(self, with_broken_lines):
         """Page validates while constructing, so one bad box aborts the whole
@@ -237,3 +242,54 @@ class TestTheOrderIsPositionNotReading:
         from document_intelligence import ReadingOrder, validate_reading_order
 
         assert ReadingOrder is not None and callable(validate_reading_order)
+
+
+class TestRejectionsAreClassified:
+    """A caller responding to "the parser emitted a zero-height line" and to
+    "the parser put text off the page" wants different things. The model says
+    which in prose; the adapter says which in a value."""
+
+    def test_a_degenerate_box_is_named_as_one(self):
+        from adapters.pdfplumber_adapter import classify
+        assert classify("bounding-box coordinates must be ordered") == "degenerate_box"
+
+    def test_an_off_page_box_is_named_as_one(self):
+        from adapters.pdfplumber_adapter import classify
+        assert classify("page-space bounding box must be within page bounds") == "outside_page"
+        assert classify("normalized bounding-box coordinates must be within 0..1") == "outside_page"
+
+    def test_a_non_finite_coordinate_is_its_own_cause(self):
+        from adapters.pdfplumber_adapter import classify
+        assert classify("bounding-box coordinates must be finite") == "non_finite"
+
+    def test_a_duplicate_identifier_is_a_page_level_problem(self):
+        from adapters.pdfplumber_adapter import classify
+        assert classify("region identifiers must be unique within a page") == \
+            "duplicate_identifier"
+
+    def test_an_unrecognised_rejection_is_flagged_rather_than_excused(self):
+        """The model gained a rejection reason this adapter has never seen. That
+        is the case a reader most needs to look at, so it is not folded into a
+        benign default."""
+        from adapters.pdfplumber_adapter import classify
+        assert classify("some future rule nobody has written yet") == "unclassified"
+
+    def test_every_cause_the_model_can_raise_is_covered(self, sample_pdf):
+        """Guards against the classifier silently going stale.
+
+        If the model grows a reason the adapter cannot name, this fails rather
+        than quietly labelling it unclassified in production.
+        """
+        from adapters.pdfplumber_adapter import classify
+
+        messages = [
+            "bounding-box coordinates must be ordered",
+            "bounding-box coordinates must be finite",
+            "normalized bounding-box coordinates must be within 0..1",
+            "page-space bounding box must be within page bounds",
+            "region identifier must not be empty",
+            "region identifiers must be unique within a page",
+            "page number must be a positive integer",
+            "page dimensions must be finite and positive",
+        ]
+        assert all(classify(m) != "unclassified" for m in messages)

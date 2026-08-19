@@ -32,6 +32,32 @@ from document_intelligence.model import BoundingBox, Document, Page, TextRegion
 ORDER_BASIS = "vertical_position"
 
 
+# The model rejects for a dozen distinct reasons and says so in prose. A caller
+# wanting to respond differently to "the parser emitted a zero-height line" and
+# "the parser put text off the page" had to match on the message text - and the
+# tests in this repository were doing exactly that, which is how the need showed
+# up. The message stays; the classification is a value beside it.
+_CAUSES = (
+    ("degenerate_box", ("must be ordered",)),
+    ("outside_page", ("within page bounds", "within 0..1")),
+    ("non_finite", ("must be finite",)),
+    ("bad_identifier", ("identifier must not be empty",)),
+    ("duplicate_identifier", ("identifiers must be unique",)),
+    ("bad_page", ("page number", "page dimensions")),
+)
+
+
+def classify(reason: str) -> str:
+    lowered = reason.lower()
+    for cause, needles in _CAUSES:
+        if any(needle.lower() in lowered for needle in needles):
+            return cause
+    # Deliberately not "unknown_but_probably_fine": an unrecognised rejection is
+    # the one a reader most needs to look at, since it means the model refused
+    # for a reason this adapter has never seen.
+    return "unclassified"
+
+
 @dataclass(frozen=True)
 class SkippedRegion:
     """A region the model refused, kept rather than dropped.
@@ -43,6 +69,7 @@ class SkippedRegion:
     page_number: int
     identifier: str
     reason: str
+    cause: str = "unclassified"
 
 
 @dataclass(frozen=True)
@@ -130,7 +157,8 @@ def parse_pdf(path: str | Path, *, max_pages: int | None = None,
                     box.validate_for_page(source.width, source.height)
                     regions.append(TextRegion(identifier=identifier, bounding_box=box))
                 except ValueError as error:
-                    skipped.append(SkippedRegion(index, identifier, str(error)))
+                    skipped.append(SkippedRegion(index, identifier, str(error),
+                                                 classify(str(error))))
 
             try:
                 pages.append(Page(number=index, width=source.width,
@@ -139,7 +167,9 @@ def parse_pdf(path: str | Path, *, max_pages: int | None = None,
                 # A page can still be refused for reasons no single region owns,
                 # such as duplicate identifiers. Then the page really is
                 # unrepresentable and losing it is the correct outcome.
-                skipped.append(SkippedRegion(index, f"p{index}", f"page rejected: {error}"))
+                skipped.append(SkippedRegion(index, f"p{index}",
+                                             f"page rejected: {error}",
+                                             classify(str(error))))
 
     document = Document(identifier=path.name, checksum=digest, pages=tuple(pages))
     return ParseResult(document=document, skipped=tuple(skipped),
