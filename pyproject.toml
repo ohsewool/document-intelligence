@@ -1,0 +1,29 @@
+# Packaging exists so the commands this project's README prints actually work.
+#
+# The layout is src/, so a fresh clone cannot `import document_intelligence` and cannot run
+# `python -m document_intelligence.…` - the tests only worked because each one inserts src/
+# onto sys.path itself. Someone following the README hit a ModuleNotFoundError
+# on the first documented command.
+#
+#     pip install -e .
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "document-intelligence"
+version = "0.1.0"
+description = "파서에 의존하지 않는 문서 증거 모델"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = []
+
+[project.urls]
+Source = "https://github.com/ohsewool/document-intelligence"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
