@@ -6,7 +6,7 @@
 
 ```bash
 pip install -e .                                   # src/ 레이아웃이라 설치 없이는 import되지 않는다
-python3 -m pytest tests/ -q     # 106 tests
+python3 -m pytest tests/ -q     # 120 tests
 ```
 
 ## 무엇을 보장하는가
@@ -32,12 +32,12 @@ hierarchy.py      문서 구조(섹션·페이지·구역) 참조와 검증
 
 ## 관련 저장소
 
-[`rag-profile-selector`](https://github.com/ohsewool/rag-profile-selector)가 검색 결과를 이 모델의 좌표로 되짚어 인용 정확도를 측정한다. 두 저장소를 물리적으로 합치지 않은 이유는 그쪽 `docs/ADR-001-citation-grounding.md`에 기록돼 있다.
+[`rag-profile-selector`](https://github.com/ohsewool/rag-profile-selector)가 검색 결과를 이 모델의 좌표로 되짚어 인용 정확도를 측정한다. 두 저장소를 물리적으로 합치지 않은 이유는 그쪽 [ADR-001](https://github.com/ohsewool/rag-profile-selector/blob/main/docs/ADR-001-citation-grounding.md)에 기록돼 있다.
 
 ## 실제 파서 연결
 
 ```bash
-python3 -m pytest tests/ -q      # 106 tests, about 12 seconds
+python3 -m pytest tests/ -q      # 120 tests, about 12 seconds
 ```
 
 `src/document_intelligence/adapters/pdfplumber.py`가 실제 PDF를 pdfplumber로 파싱해 이 모델에 그대로 넘긴다. 이전까지 모델이 만난 좌표는 전부 이 저장소의 픽스처가 만든 것이었는데, 픽스처는 모델에 맞게 쓰이므로 "어떤 파서의 결과든 받는다"는 주장의 시험이 되지 못한다. 15페이지 논문에서 구역 724개, 거부 0건.
