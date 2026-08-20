@@ -50,8 +50,6 @@ pypdf = pytest.importorskip("pypdf")
 
 from document_intelligence.adapters.pdfplumber import parse_pdf  # noqa: E402
 
-PDF = ROOT / "tests" / "fixtures" / "sample.pdf"
-
 # 표와 어텐션 시각화가 있는 지면. 두 엔진이 갈리는 곳이고, 갈린다는 것이 결론이다.
 FIGURE_PAGES = frozenset({9, 10, 13, 14, 15})
 
@@ -79,16 +77,14 @@ FIGURE_INCONSISTENCY_FLOOR = 10.0
 
 
 @pytest.fixture(scope="module")
-def parsed():
-    if not PDF.exists():
-        pytest.skip("샘플 PDF가 없다 (네트워크 없이 받은 적 없음)")
-    return parse_pdf(PDF)
+def parsed(sample_pdf):
+    return parse_pdf(sample_pdf)
 
 
 @pytest.fixture(scope="module")
-def baselines():
+def baselines(sample_pdf):
     """pypdf가 본 각 지면의 baseline. 아래쪽 원점 그대로 돌려준다."""
-    reader = pypdf.PdfReader(str(PDF))
+    reader = pypdf.PdfReader(str(sample_pdf))
     found: dict[int, list[float]] = {}
     for index, page in enumerate(reader.pages, start=1):
         rows: list[float] = []

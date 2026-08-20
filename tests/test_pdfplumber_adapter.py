@@ -11,8 +11,6 @@ pretending to have run.
 
 import hashlib
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 import pytest
@@ -26,23 +24,8 @@ pytest.importorskip("pdfplumber")
 from document_intelligence.adapters.pdfplumber import parse_pdf  # noqa: E402
 from document_intelligence.model import BoundingBox  # noqa: E402
 
-# arXiv:1706.03762, distributed by the authors for exactly this kind of reuse.
-PDF_URL = "https://arxiv.org/pdf/1706.03762v7"
-CACHE = Path(__file__).parent / "fixtures" / "sample.pdf"
-
-
-@pytest.fixture(scope="module")
-def sample_pdf():
-    if CACHE.exists():
-        return CACHE
-    CACHE.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        request = urllib.request.Request(PDF_URL, headers={"User-Agent": "document-intelligence"})
-        with urllib.request.urlopen(request, timeout=60) as response:
-            CACHE.write_bytes(response.read())
-    except (urllib.error.URLError, TimeoutError) as error:
-        pytest.skip(f"cannot fetch the sample PDF: {error}")
-    return CACHE
+# `sample_pdf`는 tests/conftest.py에 있다. 여기 있었을 때는 이 모듈이 먼저 돌아야만
+# 파일이 생겼고, 알파벳 순으로 앞서는 모듈은 CI에서 조용히 skip됐다.
 
 
 _CACHE: dict[tuple, object] = {}
