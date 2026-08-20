@@ -4,3 +4,7 @@
 # Tests
 pytest>=8
 pdfplumber>=0.11        # the real-parser adapter and its tests
+
+# 교차 검증용. 어댑터가 아니라 검사자다 — pdfplumber(=pdfminer)와 구현이 달라야
+# "두 파서가 같은 자리를 가리키는가"를 물을 수 있다.
+pypdf>=5             # tests/test_cross_parser_agreement.py
