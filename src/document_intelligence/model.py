@@ -13,6 +13,26 @@ RegionType: TypeAlias = Literal["text", "table", "figure", "caption"]
 TextProvenance: TypeAlias = Literal["extracted", "transcribed"]
 
 
+def _measurement(value: object) -> bool:
+    """A finite real number that is not a ``bool``.
+
+    ``bool`` is a subclass of ``int``, so ``isinstance(True, Real)`` holds and
+    ``True`` arrived as ``1``. For a coordinate that is merely odd. For
+    ``confidence`` it is the failure this module exists to prevent: a recogniser
+    that hands back a flag instead of a number would be recorded as **certain**,
+    and the docstring below promises the opposite - that how sure the recogniser
+    was survives the parser boundary. A boolean does not carry that, and
+    silently reading it as 1.0 is a guess presented as a reading.
+
+    Found 2026-08-22 while sweeping degenerate numeric inputs across the five
+    repositories. This module already refused ``nan`` and ``inf`` everywhere,
+    which is why the other four ended up copying its shape; ``bool`` was the one
+    gap. ``agent-safety-core``, ``mcp-gateway`` and ``rag-profile-selector`` all
+    exclude it now for the same reason.
+    """
+    return isinstance(value, Real) and not isinstance(value, bool) and isfinite(value)
+
+
 @dataclass(frozen=True, slots=True)
 class BoundingBox:
     """An ordered rectangle in normalized (0..1) or page-space coordinates."""
@@ -27,7 +47,7 @@ class BoundingBox:
         if self.coordinate_space not in ("normalized", "page"):
             raise ValueError("coordinate_space must be 'normalized' or 'page'")
         values = (self.left, self.top, self.right, self.bottom)
-        if not all(isinstance(value, Real) and isfinite(value) for value in values):
+        if not all(_measurement(value) for value in values):
             raise ValueError("bounding-box coordinates must be finite")
         if not self.left < self.right or not self.top < self.bottom:
             raise ValueError("bounding-box coordinates must be ordered")
@@ -75,7 +95,7 @@ class _Region:
         if self.provenance not in ("extracted", "transcribed"):
             raise ValueError("provenance must be 'extracted' or 'transcribed'")
         if self.confidence is not None:
-            if not isinstance(self.confidence, Real) or not isfinite(self.confidence):
+            if not _measurement(self.confidence):
                 raise ValueError("confidence must be a finite number")
             if not 0.0 <= self.confidence <= 1.0:
                 raise ValueError("confidence must be within 0..1")
