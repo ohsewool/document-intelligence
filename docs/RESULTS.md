@@ -76,4 +76,8 @@ Report per-query values, numerator, denominator, cutoff, aggregate, sample count
 
 ## Current findings
 
-None. The project remains in the specification and planning phase.
+**이 문장은 더 이상 사실이 아니었다.** 원래 "None. The project remains in the specification and planning phase."였고, 착수 시점에는 맞았으며 그 뒤로 고쳐지지 않았다.
+
+이 파일에는 없다. 실제 측정은 [README](../README.md)에 있다 — 실제 PDF 15쪽에서 구역 724개·거부 0건, 독립 파서(pypdf)를 오라클로 한 좌표 교차 검증(본문 쪽 일치율 91.7~100%, 표·그림 쪽 13.6~74.8%).
+
+아래 템플릿은 그대로 둔다 — 보고 구조를 정의하는 것이 이 파일의 나머지 역할이다.
