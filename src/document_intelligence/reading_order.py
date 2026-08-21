@@ -124,13 +124,21 @@ class ReadingOrder:
         if terminals != 1:
             raise ValueError("reading order must have exactly one terminal region")
 
+        # 아래 두 검사는 **도달 불가**다. 종점이 정확히 하나이고 어떤 구역도
+        # 선행자를 둘 이상 갖지 못한다는 앞의 두 검사를 통과하면, 시작점은 반드시
+        # 하나이고 순회는 방문한 구역으로 되돌아올 수 없다. 구역 4개까지 전수
+        # 탐색해 확인했다.
+        #
+        # 지우지 않고 남기되 그렇게 적어둔다. 실행되지 않는 검사를 활성 검사처럼
+        # 보이게 두면, 읽는 사람은 이 함수가 잡아주는 것을 실제보다 넓게 본다.
+        # 끊긴 순환은 아래 도달성 검사가 잡고, 그쪽은 테스트가 있다.
         starts = [region for region in regions if incoming[region] == 0]
-        if len(starts) != 1:
+        if len(starts) != 1:  # pragma: no cover - 앞선 검사가 선점한다
             raise ValueError("reading order must have exactly one initial region")
         visited: set[RegionReference] = set()
         current: RegionReference | None = starts[0]
         while current is not None:
-            if current in visited:
+            if current in visited:  # pragma: no cover - 앞선 검사가 선점한다
                 raise ValueError("reading-order adjacency contains a cycle")
             visited.add(current)
             current = outgoing.get(current)
