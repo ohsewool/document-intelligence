@@ -10,6 +10,7 @@ pretending to have run.
 """
 
 import hashlib
+import re
 import sys
 from pathlib import Path
 
@@ -57,6 +58,12 @@ def parsed(sample_pdf):
     One test parses all fifteen, and does so on every run.
     """
     return parse_once(sample_pdf, max_pages=3)
+
+
+@pytest.fixture(scope="module")
+def whole_paper(sample_pdf):
+    """열다섯 페이지 전부. 공개된 숫자가 설명하는 것은 이쪽이다."""
+    return parse_once(sample_pdf)
 
 
 class TestARealParseIsAcceptedWhole:
@@ -322,3 +329,58 @@ def test_the_package_works_without_pdfplumber():
                               capture_output=True, text=True, timeout=300)
     assert finished.returncode == 0, finished.stderr[-800:]
     assert finished.stdout.strip() == "1"
+
+
+class TestThePublishedCountsStillHold:
+    """README에 실린 숫자가 지금 코드에서도 나오는가.
+
+    README는 "15페이지 논문에서 구역 724개, 거부 0건"과 "14페이지는 구역 45개에서
+    좌우를 20번 오간다"를 싣는다. 기존 검사는 **페이지 15개와 거부 0건만** 단언했고
+    구역 수는 아무도 확인하지 않았다.
+
+    `rag-profile-selector`에서 같은 빈 곳을 찾고 여기로 왔다. 거기서는 공개된
+    MRR·regret 표를 아무것도 실행 결과와 대조하지 않았다. `agent-safety-core`에는
+    그 검사가 있다(`test_published_benchmark.py`). **한쪽에는 있고 형제에는 없는**
+    이 저장소들의 단골 모양이다.
+
+    숫자를 여기 박아두지 않고 **README에서 읽어와** 비교한다. 박아두면 문서와 코드가
+    따로 놀 때 이 파일이 문서 편을 들지 코드 편을 들지 알 수 없다. 읽어오면 둘 중
+    하나가 움직이는 순간 걸린다.
+
+    pdfplumber 버전이 바뀌어 구역 수가 달라지면 이 검사가 빨간불이 된다. **그것이
+    원하는 신호다** — 공개한 숫자가 더 이상 성립하지 않는다는 뜻이니까.
+    """
+
+    @staticmethod
+    def published(pattern: str) -> int:
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+        match = re.search(pattern, readme)
+        assert match, f"README에서 {pattern!r}를 찾지 못했다 — 문장이 바뀌었나?"
+        return int(match.group(1))
+
+    def test_the_total_region_count_is_what_the_readme_says(self, whole_paper):
+        assert whole_paper.region_count == self.published(r"구역 (\d+)개, 거부 0건")
+
+    def test_the_page_count_is_what_the_readme_says(self, whole_paper):
+        assert len(whole_paper.document.pages) == self.published(r"(\d+)페이지 논문에서")
+
+    def test_the_two_column_page_count_is_what_the_readme_says(self, whole_paper):
+        """14페이지 45개는 읽기 순서 결함을 설명하는 숫자다. 그 문장이 서 있는 값."""
+        assert len(whole_paper.document.pages[13].regions) == \
+            self.published(r"14페이지는 구역 (\d+)개")
+
+    def test_the_readme_numbers_are_not_trivially_small(self):
+        """README에서 0이나 1을 읽어오면 위 검사들이 통과하면서 아무것도 지키지 않는다."""
+        assert self.published(r"구역 (\d+)개, 거부 0건") > 100
+        assert self.published(r"14페이지는 구역 (\d+)개") > 10
+
+    def test_a_changed_count_would_be_noticed(self, whole_paper):
+        """비교가 차이를 잡는지. 한 값을 흔들어 같은 판정을 걸어본다."""
+        assert whole_paper.region_count + 1 != self.published(r"구역 (\d+)개, 거부 0건")
+
+    def test_the_three_page_fixture_is_not_what_these_numbers_describe(self, parsed):
+        """처음에 `parsed`(3페이지, 124구역)로 썼다가 724와 비교해 실패했다.
+        기본 픽스처는 구조 검사용이고 공개된 숫자는 **논문 전체**의 것이다.
+        그 구분을 여기 남긴다."""
+        assert len(parsed.document.pages) == 3
+        assert sum(len(page.regions) for page in parsed.document.pages) < 200
