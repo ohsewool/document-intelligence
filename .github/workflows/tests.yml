@@ -65,7 +65,12 @@ jobs:
         #
         # 100% is a gate, not a target. A new defensive branch either gets a test
         # or gets `# pragma: no cover` with a reason beside it.
+        #
+        # `--branch`, added a day later: a statement gate says every line ran,
+        # not that every `if` went both ways. Re-measured here and it was already
+        # 100% - the only one of the four that was. An audit that finds nothing
+        # is a result, and it is not the same as an audit nobody ran.
         run: |
           pip install -q coverage
-          python -m coverage run --source=document_intelligence -m pytest -q > /dev/null
+          python -m coverage run --branch --source=document_intelligence -m pytest -q > /dev/null
           python -m coverage report -m --fail-under=100
