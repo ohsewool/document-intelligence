@@ -44,7 +44,16 @@ class ReadingOrderTests(unittest.TestCase):
         self.assertEqual(ReadingOrder.validate(self.pages, supplied).links, supplied)
 
     def test_rejects_duplicate_regions(self) -> None:
-        with self.assertRaises(ValueError):
+        """메시지까지 맞춘다. 맞추지 않으면 이 테스트는 **유일성 검사를 통째로
+        지워도 통과한다** — 중복 구역은 그 다음의 "종점이 정확히 하나여야 한다"에
+        걸리고, 그것도 ValueError이기 때문이다. 2026-08-22에 지워보고 확인했다:
+        189개 전부 통과했고 커버리지는 그때도 100%였다.
+
+        같은 이유가 이 파일 옆에 이미 적혀 있었다 — `test_reading_order_rejections`의
+        머리말이 "메시지를 안 보면 두 경로가 같아 보이고, 한쪽이 죽은 코드가 돼도
+        모른다"고 말한다. 그 규칙이 나중에 쓰였고 이 테스트는 그 전에 있었다.
+        """
+        with self.assertRaisesRegex(ValueError, "reading-order regions must be unique"):
             ReadingOrder.validate(self.pages, (ReadingOrderLink(self.first), ReadingOrderLink(self.first)))
 
     def test_rejects_ownership_mismatch(self) -> None:
