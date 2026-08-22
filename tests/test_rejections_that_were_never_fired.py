@@ -27,6 +27,7 @@ pytest가 사용법 오류(rc=4)로 끝났고, 스크립트는 0 아닌 종료 �
 """
 
 import unittest
+from pathlib import Path
 
 from document_intelligence.coordinates import (
     CoordinateError,
@@ -225,3 +226,69 @@ class TheAuditIsRecorded(unittest.TestCase):
         readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
         self.assertIn("76개를 하나씩", readme)
         self.assertIn("21건", readme)
+
+
+class LinesNoTestEverRan(unittest.TestCase):
+    """거부 감사 뒤에 질문을 넓혔다 — **한 번도 실행되지 않는 줄이 무엇인가.**
+    586줄 중 7줄이었고, 다섯 저장소 중 가장 적었다. 전부 작은 갈래지만 각각
+    무언가를 말한다."""
+
+    def test_a_list_of_regions_is_accepted_and_frozen(self) -> None:
+        """서명은 튜플을 말하지만 리스트로 부르는 호출자가 있다. 받아서 얼리는
+        갈래가 한 번도 지나가지 않았다 — **모델이 불변이라는 주장이 그 갈래에
+        걸려 있다.**"""
+        page = Page(1, 100.0, 200.0, regions=[TextRegion("r1", BoundingBox(0.1, 0.1, 0.5, 0.5))])
+        self.assertIsInstance(page.regions, tuple)
+
+    def test_a_list_of_pages_is_accepted_and_frozen(self) -> None:
+        from document_intelligence.model import Document
+
+        page = Page(1, 100.0, 200.0, regions=())
+        document = Document("doc-1", "0" * 64, pages=[page], evidence=[])
+        self.assertIsInstance(document.pages, tuple)
+        self.assertIsInstance(document.evidence, tuple)
+
+    def test_a_list_of_hierarchy_records_is_accepted_and_frozen(self) -> None:
+        document = DocumentReference("document-1")
+        section = SectionReference("document-1", "intro", position=0)
+        hierarchy = DocumentHierarchy(document, sections=[section])
+        self.assertIsInstance(hierarchy.sections, tuple)
+
+    def test_a_hierarchy_identifier_must_be_a_non_empty_string(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be a non-empty string"):
+            DocumentReference("")
+
+    def test_a_coordinate_that_is_not_a_number_is_refused(self) -> None:
+        """`True`는 `int`의 부분형이다. 좌표로 받으면 1.0이 되고, **플래그가
+        자리로 둔갑한다** — 이 저장소가 페이지 번호에서 이미 막아둔 것과 같은 길이다."""
+        with self.assertRaisesRegex(CoordinateError, "must be a finite number"):
+            PageSpace(True, 200)
+
+    def test_a_page_the_model_refuses_wholesale_is_reported_not_raised(self) -> None:
+        """어댑터는 구역별로 먼저 검증한다. 그래도 **구역 하나가 소유하지 않는
+        이유**로 페이지 전체가 거부될 수 있고, 그때 어댑터는 터지지 않고 `skipped`에
+        적어야 한다. 그 갈래가 한 번도 지나가지 않았다.
+
+        실제 PDF로 그 상태를 만들려면 병리적인 문서가 필요하다 — 식별자는
+        `enumerate`에서 나오므로 중복될 수 없고, 남은 길은 폭이 0인 페이지다.
+        그래서 **모델이 거부하는 상황 자체를 주입**한다. 여기서 확인하려는 것은
+        "모델이 거부했을 때 어댑터가 무엇을 하는가"이지 모델이 언제 거부하는가가
+        아니다 — 후자는 `model.py` 쪽 테스트가 본다.
+        """
+        import document_intelligence.adapters.pdfplumber as adapter
+
+        original = adapter.Page
+
+        def refusing(*args, **kwargs):
+            raise ValueError("region identifiers must be unique within a page")
+
+        adapter.Page = refusing
+        try:
+            result = adapter.parse_pdf(Path(__file__).resolve().parents[1]
+                                       / "tests" / "fixtures" / "sample.pdf")
+        finally:
+            adapter.Page = original
+
+        self.assertEqual(result.document.pages, ())
+        self.assertTrue(result.skipped)
+        self.assertTrue(any("page rejected" in item.reason for item in result.skipped))

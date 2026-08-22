@@ -57,3 +57,15 @@ jobs:
 
       - name: Run the suite
         run: python -m pytest -q -rs   # -rs names every skip and why
+
+      - name: Refuse a line this suite never executes
+        # A coverage sweep on 2026-08-22 found 7 statements no test ever ran -
+        # the fewest of the five repositories, and still enough to include the
+        # branch that decides what happens when the model refuses a whole page.
+        #
+        # 100% is a gate, not a target. A new defensive branch either gets a test
+        # or gets `# pragma: no cover` with a reason beside it.
+        run: |
+          pip install -q coverage
+          python -m coverage run --source=document_intelligence -m pytest -q > /dev/null
+          python -m coverage report -m --fail-under=100
