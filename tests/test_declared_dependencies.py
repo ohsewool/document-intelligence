@@ -154,8 +154,20 @@ class TestItImportsWithoutTheParser:
     """
 
     def run_without(self, name, code):
+        """`src`를 **명시적으로** 경로에 넣는다.
+
+        처음엔 안 넣었다. 로컬에서는 통과했고 CI에서 빨간불이었다 —
+        `ModuleNotFoundError: No module named 'document_intelligence'`. 로컬은
+        패키지가 설치돼 있어 하위 프로세스가 그것을 집었고, CI는 아니었다.
+        **설치 여부에 기대는 검사는 기계마다 다른 것을 시험한다.**
+
+        덤으로 하나 더 지킨다: 하위 프로세스가 집은 것이 **이 저장소의 소스**인지.
+        설치된 옛 사본을 집으면 검사는 초록불인데 여기 코드는 안 봤다는 뜻이다 —
+        `test_adapter_import_path.py`가 걱정하는 것과 같은 종류의 착각이다.
+        """
         script = textwrap.dedent(f'''
             import sys
+            sys.path.insert(0, {str(ROOT / "src")!r})
             from importlib.abc import MetaPathFinder
 
             class Absent(MetaPathFinder):
@@ -169,6 +181,16 @@ class TestItImportsWithoutTheParser:
         ''') + textwrap.dedent(code)
         return subprocess.run([sys.executable, "-c", script], cwd=ROOT,
                               capture_output=True, text=True, timeout=180)
+
+    def test_the_subprocess_uses_this_repositorys_source(self):
+        """대조: 하위 프로세스가 딴 사본을 보고 있으면 아래 검사들은 딴 코드를
+        확인한 것이다."""
+        finished = self.run_without("pdfplumber", '''
+            import document_intelligence
+            print(document_intelligence.__file__)
+        ''')
+        assert finished.returncode == 0, finished.stderr[-1500:]
+        assert finished.stdout.strip().startswith(str(ROOT / "src")), finished.stdout
 
     def test_the_package_imports(self):
         finished = self.run_without("pdfplumber", '''
