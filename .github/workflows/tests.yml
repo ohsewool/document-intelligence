@@ -71,6 +71,16 @@ jobs:
         # 100% - the only one of the four that was. An audit that finds nothing
         # is a result, and it is not the same as an audit nobody ran.
         run: |
+          # `adapters` was outside this gate until 2026-08-23. It holds the
+          # top-level re-export the README documents, and it read 0% - not
+          # because nothing tested it, but because every test of it runs in a
+          # **subprocess** (they plant a decoy on `sys.path`, which needs its
+          # own interpreter). In-process coverage cannot see those runs.
+          #
+          # "not tested" and "not visible to the meter" look identical on the
+          # report. One in-process test now asserts the re-export hands over the
+          # same objects here, which is a different question from the collision
+          # ones and closes the gap honestly rather than by widening a threshold.
           pip install -q coverage
-          python -m coverage run --branch --source=document_intelligence -m pytest -q > /dev/null
+          python -m coverage run --branch --source=document_intelligence,adapters -m pytest -q > /dev/null
           python -m coverage report -m --fail-under=100

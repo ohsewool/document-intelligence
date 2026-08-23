@@ -139,3 +139,32 @@ class TestTheOldPathStillWorksWhenNothingCollides:
         """)
         assert {"parse_pdf", "classify", "ParseResult", "SkippedRegion", "ORDER_BASIS"} <= set(
             eval(result.stdout.strip())), result.stdout
+
+
+class TestTheReExportInThisInterpreter:
+    """위의 검사들은 전부 **하위 프로세스**에서 돈다. 그럴 이유가 있다 — `sys.path`에
+    미끼를 놓고 충돌을 만들어야 하기 때문이다.
+
+    그 대가로 **in-process 커버리지는 이 파일을 0%로 본다.** 2026-08-23에 커버리지
+    관문의 `--source`를 넓히다 발견했다: `adapters/pdfplumber_adapter.py`가 0%인데
+    검사가 없어서가 아니라 **재는 쪽이 그 프로세스를 안 봐서**였다.
+
+    그 둘은 화면에서 같아 보인다 — 그래서 여기 한 줄을 더 둔다. 충돌 이야기가 아니라
+    **이 인터프리터에서 재수출이 실제로 이름을 넘겨주는가**를 묻는다.
+    """
+
+    def test_it_imports_here_too(self):
+        import adapters.pdfplumber_adapter as old
+        from document_intelligence.adapters import pdfplumber as new
+
+        assert old.parse_pdf is new.parse_pdf
+        assert old.classify is new.classify
+        assert old.ORDER_BASIS == new.ORDER_BASIS
+
+    def test_the_declared_surface_is_what_it_re_exports(self):
+        """`__all__`이 실제로 가져온 것과 어긋나면 `from ... import *`가 조용히
+        깨진다. **선언과 실물을 맞춰본다.**"""
+        import adapters.pdfplumber_adapter as old
+
+        missing = [name for name in old.__all__ if not hasattr(old, name)]
+        assert missing == [], f"`__all__`에 있는데 모듈에 없다: {missing}"
