@@ -46,6 +46,8 @@ from document_intelligence.hierarchy import (
 )
 from document_intelligence.model import BoundingBox, Page, TextRegion
 
+from sample_pdf import ensure_sample_pdf
+
 
 class PageSpaceRejections(unittest.TestCase):
     """`PageSpace`는 자기 단위와 원점이 무엇인지 안다고 주장한다. 문자열을 받아
@@ -284,8 +286,11 @@ class LinesNoTestEverRan(unittest.TestCase):
 
         adapter.Page = refusing
         try:
-            result = adapter.parse_pdf(Path(__file__).resolve().parents[1]
-                                       / "tests" / "fixtures" / "sample.pdf")
+            # 경로를 여기 다시 적지 않는다. `unittest.TestCase`는 pytest 픽스처를
+            # 인자로 못 받지만 `ensure_sample_pdf()`는 평범한 함수라 부를 수 있다.
+            # 직접 적었을 때는 파일이 없으면 skip이 아니라 FileNotFoundError로
+            # 죽었다 — 나머지 서른둘은 skip인데 이것만 빨간불이었다.
+            result = adapter.parse_pdf(ensure_sample_pdf())
         finally:
             adapter.Page = original
 
